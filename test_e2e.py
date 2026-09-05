@@ -1,5 +1,12 @@
+import sys
 import httpx
 import json
+
+if sys.stdout.encoding and sys.stdout.encoding.lower() != "utf-8":
+    try:
+        sys.stdout.reconfigure(encoding="utf-8")
+    except Exception:
+        pass
 
 BASE_URL = "http://127.0.0.1:8001"
 
