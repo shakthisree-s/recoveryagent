@@ -1,0 +1,29 @@
+{
+  "model": "RandomForestClassifier",
+  "dataset_size": 50000,
+  "training_rows": 40000,
+  "testing_rows": 10000,
+  "accuracy": 0.9243,
+  "precision": 0.8912,
+  "recall": 0.83,
+  "f1_score": 0.8596,
+  "roc_auc": 0.9656,
+  "failed_payment_recall": 0.83,
+  "features": [
+    "amount",
+    "promo_amount",
+    "shipment_fee",
+    "transaction_hour",
+    "transaction_day",
+    "payment_method",
+    "gender",
+    "device_type",
+    "home_country",
+    "total_transactions",
+    "successful_payments",
+    "failed_payments",
+    "average_transaction_amount",
+    "total_spend",
+    "failure_rate"
+  ]
+}
