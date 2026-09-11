@@ -12,7 +12,8 @@ import {
   ArrowUpRight
 } from 'lucide-react';
 
-export default function Overview({ metrics, modelMetrics, onOpenCase, cases = [] }) {
+export default function Overview({ metrics, modelMetrics, onOpenCase, cases = [], loadError = null }) {
+  const metricsUnavailable = !metrics && !!loadError;
   const atRiskRevenue = metrics?.total_revenue_at_risk || 0;
   const recoveredRevenue = metrics?.total_revenue_recovered || 0;
   const recoveryRate = metrics?.recovery_rate || 0;
@@ -30,6 +31,20 @@ export default function Overview({ metrics, modelMetrics, onOpenCase, cases = []
     high_value_approval_threshold: 25000,
     max_payment_attempts: 3,
   };
+
+  // Top revenue-at-risk opportunities (derived live from case state, never hardcoded)
+  const topOpportunities = [...cases]
+    .filter((c) => c.recommended_action !== 'NO_ACTION' && c.status !== 'RECOVERED')
+    .sort((a, b) => (b.amount * (b.risk_score || b.risk_probability || 0)) - (a.amount * (a.risk_score || a.risk_probability || 0)))
+    .slice(0, 5);
+
+  const pipeline = [
+    { stage: 'Detected', count: cases.length },
+    { stage: 'At Risk', count: atRiskCases },
+    { stage: 'Approval', count: approvalCases },
+    { stage: 'Recovered', count: recoveredCases },
+    { stage: 'Blocked / Stopped', count: blockedCases },
+  ];
 
   // Calculate status counts for live chart
   const statusCounts = {
@@ -59,6 +74,43 @@ export default function Overview({ metrics, modelMetrics, onOpenCase, cases = []
         </p>
       </div>
 
+      {/* API failure banner — never silently show zeros */}
+      {loadError && (
+        <div className="alert-box alert-warning" style={{ background: '#FEF2F2', borderColor: '#FECACA', color: '#991B1B', marginBottom: '20px' }}>
+          <AlertTriangle size={20} style={{ flexShrink: 0, marginTop: '2px' }} />
+          <div>
+            <strong>Unable to load metrics</strong>
+            <p style={{ marginTop: '2px', fontSize: '0.8125rem' }}>
+              {loadError} — figures below may be stale or unavailable. Check that the backend is running at the configured API URL.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Live agent status strip */}
+      <div className="kpi-sub-grid" style={{ marginBottom: '20px' }}>
+        <div className="kpi-sub-card">
+          <span className="kpi-sub-label">Agent</span>
+          <span className="kpi-sub-value" style={{ color: metricsUnavailable ? '#B91C1C' : '#059669' }}>
+            {metricsUnavailable ? 'Offline' : 'RevenueRecoveryAgent · Active'}
+          </span>
+        </div>
+        <div className="kpi-sub-card">
+          <span className="kpi-sub-label">Mode</span>
+          <span className="kpi-sub-value">Razorpay Test Mode</span>
+        </div>
+        <div className="kpi-sub-card">
+          <span className="kpi-sub-label">Loop</span>
+          <span className="kpi-sub-value" style={{ fontSize: '0.8rem' }}>Detect → Diagnose → Decide → Policy → Execute → Measure</span>
+        </div>
+        <div className="kpi-sub-card">
+          <span className="kpi-sub-label">Avg Risk Score</span>
+          <span className="kpi-sub-value">
+            {metricsUnavailable ? '—' : ((metrics?.average_risk_score ?? 0) * 100).toFixed(1) + '%'}
+          </span>
+        </div>
+      </div>
+
       {/* Main KPI Grid */}
       <div className="kpi-grid">
         <div className="kpi-card highlight">
@@ -68,10 +120,17 @@ export default function Overview({ metrics, modelMetrics, onOpenCase, cases = []
               <CheckCircle size={18} />
             </div>
           </div>
-          <div className="kpi-value">₹{recoveredRevenue.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+          <div className="kpi-value">
+            {metricsUnavailable ? <span style={{ fontSize: '1rem', color: '#B91C1C' }}>Unable to load metrics</span>
+              : `₹${recoveredRevenue.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+          </div>
           <div className="kpi-footer">
-            <span style={{ color: '#059669', fontWeight: 600 }}>{recoveryRate}% recovered</span>
-            <span>of ₹{atRiskRevenue.toLocaleString('en-IN')} at risk</span>
+            {metricsUnavailable ? <span style={{ color: '#B91C1C' }}>API request failed</span> : (
+              <>
+                <span style={{ color: '#059669', fontWeight: 600 }}>{recoveryRate}% recovered</span>
+                <span>of ₹{atRiskRevenue.toLocaleString('en-IN')} at risk</span>
+              </>
+            )}
           </div>
         </div>
 
@@ -82,9 +141,12 @@ export default function Overview({ metrics, modelMetrics, onOpenCase, cases = []
               <AlertTriangle size={18} />
             </div>
           </div>
-          <div className="kpi-value">₹{atRiskRevenue.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+          <div className="kpi-value">
+            {metricsUnavailable ? <span style={{ fontSize: '1rem', color: '#B91C1C' }}>Unable to load metrics</span>
+              : `₹${atRiskRevenue.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+          </div>
           <div className="kpi-footer">
-            <span>{atRiskCases} problematic payments detected</span>
+            <span>{metricsUnavailable ? 'API request failed' : `${atRiskCases} problematic payments detected`}</span>
           </div>
         </div>
 
@@ -239,6 +301,58 @@ export default function Overview({ metrics, modelMetrics, onOpenCase, cases = []
               </div>
             </div>
           </div>
+        </div>
+      </div>
+
+      {/* Recovery Pipeline + Top Opportunities Row */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.4fr', gap: '24px', marginBottom: '28px' }}>
+        <div className="card">
+          <div className="card-header">
+            <h3 className="card-title">Recovery Pipeline</h3>
+            <span className="badge badge-noaction">Live</span>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '8px' }}>
+            {pipeline.map((p) => (
+              <div key={p.stage}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8125rem', marginBottom: '4px' }}>
+                  <span>{p.stage}</span>
+                  <strong>{p.count}</strong>
+                </div>
+                <div className="progress-track">
+                  <div className="progress-fill" style={{ width: `${(p.count / (cases.length || 1)) * 100}%` }}></div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="card">
+          <div className="card-header">
+            <h3 className="card-title">Top Recovery Opportunities</h3>
+            <span className="badge badge-recovered">By revenue × risk</span>
+          </div>
+          {topOpportunities.length === 0 ? (
+            <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '8px' }}>
+              {metricsUnavailable ? 'Unable to load cases.' : 'No open at-risk revenue — all detected cases resolved.'}
+            </p>
+          ) : (
+            <table className="custom-table" style={{ marginTop: '4px' }}>
+              <thead>
+                <tr><th>Case</th><th>Amount</th><th>Risk</th><th>Next Action</th><th>Priority</th></tr>
+              </thead>
+              <tbody>
+                {topOpportunities.map((c, i) => (
+                  <tr key={c.case_id} onClick={() => onOpenCase(c.case_id)} style={{ cursor: 'pointer' }}>
+                    <td><strong>#{c.case_id}</strong> {c.customer}</td>
+                    <td style={{ fontWeight: 600 }}>₹{(c.amount || 0).toLocaleString('en-IN')}</td>
+                    <td>{((c.risk_score || c.risk_probability || 0) * 100).toFixed(0)}%</td>
+                    <td><code style={{ fontSize: '0.72rem', background: '#F1F5F9', padding: '2px 6px', borderRadius: '4px' }}>{c.recommended_action}</code></td>
+                    <td><span className={`badge badge-${i === 0 ? 'high' : i < 2 ? 'medium' : 'low'}`}>{i === 0 ? 'P1' : i < 2 ? 'P2' : 'P3'}</span></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
         </div>
       </div>
 

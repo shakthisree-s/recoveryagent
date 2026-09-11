@@ -1,0 +1,35 @@
+services:
+  # ---------------------------------------------------------------------------
+  # Backend  -  FastAPI + single RevenueRecoveryAgent
+  # ---------------------------------------------------------------------------
+  - type: web
+    name: recoveryagent-backend
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn backend.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /api/health
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.10
+      - key: RAZORPAY_MODE
+        value: TEST_MODE
+      # SQLite lives on the (ephemeral) instance disk; seeded on first boot.
+      - key: REVENUE_DB_PATH
+        value: /tmp/revenue_recovery.db
+
+  # ---------------------------------------------------------------------------
+  # Frontend  -  React + Vite static site
+  # ---------------------------------------------------------------------------
+  - type: web
+    name: recoveryagent-frontend
+    runtime: static
+    buildCommand: cd frontend && npm ci && npm run build
+    staticPublishPath: frontend/dist
+    envVars:
+      - key: VITE_API_URL
+        value: https://recoveryagent-backend.onrender.com
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html

@@ -23,6 +23,7 @@ export default function App() {
   const [isLoading, setIsLoading] = useState(false);
   const [isRunningBatch, setIsRunningBatch] = useState(false);
   const [toast, setToast] = useState(null);
+  const [loadError, setLoadError] = useState(null);
 
   const showToast = (message, type = 'success') => {
     setToast({ message, type });
@@ -43,6 +44,7 @@ export default function App() {
       setMetrics(metricsData);
       setModelMetrics(modelData);
       setAuditLogs(auditData);
+      setLoadError(null);
 
       if (selectedCaseId) {
         const detail = await api.getCaseDetail(selectedCaseId);
@@ -50,6 +52,8 @@ export default function App() {
       }
     } catch (err) {
       console.error('Failed to refresh data:', err);
+      // Never silently render zeros: surface the failure to every page.
+      setLoadError(err?.message || 'Unable to reach the Revenue Recovery API.');
     }
   };
 
@@ -124,10 +128,10 @@ export default function App() {
     }
   };
 
-  const handleApproveCase = async (caseId) => {
+  const handleApproveCase = async (caseId, notes = '') => {
     setIsLoading(true);
     try {
-      const res = await api.approveCase(caseId);
+      const res = await api.approveCase(caseId, notes);
       await refreshAll();
       const updatedDetail = await api.getCaseDetail(caseId);
       setCaseDetail(updatedDetail);
@@ -139,10 +143,10 @@ export default function App() {
     }
   };
 
-  const handleRejectCase = async (caseId) => {
+  const handleRejectCase = async (caseId, notes = '') => {
     setIsLoading(true);
     try {
-      await api.rejectCase(caseId);
+      await api.rejectCase(caseId, notes);
       await refreshAll();
       const updatedDetail = await api.getCaseDetail(caseId);
       setCaseDetail(updatedDetail);
@@ -200,6 +204,7 @@ export default function App() {
             metrics={metrics}
             modelMetrics={modelMetrics}
             cases={cases}
+            loadError={loadError}
             onOpenCase={handleSelectCase}
           />
         )}

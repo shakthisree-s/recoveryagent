@@ -41,14 +41,8 @@ app.add_middleware(
 
 @app.api_route("/api/health", methods=["GET", "HEAD"], response_model=HealthResponse)
 def get_health():
-    """Health check endpoint."""
-    return {
-        "status": "ok",
-        "agent": "RevenueRecoveryAgent",
-        "mode": "TEST_MODE",
-        "model_loaded": state_manager.agent.model is not None,
-        "version": "1.0.0"
-    }
+    """Accurate health check: service, database, model, seeded demo cases."""
+    return state_manager.health()
 
 
 @app.get("/api/cases", response_model=List[CaseSummary])
@@ -116,9 +110,11 @@ def retry_case(case_id: int):
 
 @app.post("/api/cases/{case_id}/approve", response_model=RecoveryResponse)
 def approve_case(case_id: int, request: Optional[ApprovalRequest] = None):
-    """Approve a high-value human approval case."""
+    """Approve a high-value human-approval case. Optional approver notes are
+    recorded on the attempt and in the audit trail."""
+    notes = request.notes if request else None
     try:
-        return state_manager.approve_recovery(case_id)
+        return state_manager.approve_recovery(case_id, notes=notes)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
@@ -126,10 +122,11 @@ def approve_case(case_id: int, request: Optional[ApprovalRequest] = None):
 
 
 @app.post("/api/cases/{case_id}/reject", response_model=RecoveryResponse)
-def reject_case(case_id: int):
-    """Reject a high-value human approval case."""
+def reject_case(case_id: int, request: Optional[ApprovalRequest] = None):
+    """Reject a high-value human-approval case. Rejection stops recovery."""
+    notes = request.notes if request else None
     try:
-        return state_manager.reject_recovery(case_id)
+        return state_manager.reject_recovery(case_id, notes=notes)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:

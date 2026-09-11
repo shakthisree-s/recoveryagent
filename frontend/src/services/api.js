@@ -1,6 +1,9 @@
-const API_BASE_URL = (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_API_URL) 
+const RAW_API_URL = (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_API_URL) 
   ? import.meta.env.VITE_API_URL 
-  : '/api';
+  : "http://127.0.0.1:8001";
+
+// Normalizes base URL (handles with or without trailing slash/api)
+const API_BASE_URL = RAW_API_URL.replace(/\/+$/, '').replace(/\/api$/, '');
 
 async function handleResponse(response) {
   if (!response.ok) {
@@ -18,22 +21,23 @@ async function handleResponse(response) {
 
 export const api = {
   async getHealth() {
-    const res = await fetch(`${API_BASE_URL}/health`);
+    const res = await fetch(`${API_BASE_URL}/api/health`);
     return handleResponse(res);
   },
 
   async getCases() {
-    const res = await fetch(`${API_BASE_URL}/cases`);
-    return handleResponse(res);
+    const res = await fetch(`${API_BASE_URL}/api/cases`);
+    const data = await handleResponse(res);
+    return Array.isArray(data) ? data : (data?.cases || []);
   },
 
   async getCaseDetail(caseId) {
-    const res = await fetch(`${API_BASE_URL}/cases/${caseId}`);
+    const res = await fetch(`${API_BASE_URL}/api/cases/${caseId}`);
     return handleResponse(res);
   },
 
   async analyzeCase(caseId) {
-    const res = await fetch(`${API_BASE_URL}/cases/${caseId}/analyze`, {
+    const res = await fetch(`${API_BASE_URL}/api/cases/${caseId}/analyze`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
     });
@@ -41,7 +45,7 @@ export const api = {
   },
 
   async recoverCase(caseId, simulateFailure = false) {
-    const res = await fetch(`${API_BASE_URL}/cases/${caseId}/recover`, {
+    const res = await fetch(`${API_BASE_URL}/api/cases/${caseId}/recover`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ simulate_failure: simulateFailure }),
@@ -50,7 +54,7 @@ export const api = {
   },
 
   async retryCase(caseId) {
-    const res = await fetch(`${API_BASE_URL}/cases/${caseId}/retry`, {
+    const res = await fetch(`${API_BASE_URL}/api/cases/${caseId}/retry`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
     });
@@ -58,7 +62,7 @@ export const api = {
   },
 
   async approveCase(caseId, notes = '') {
-    const res = await fetch(`${API_BASE_URL}/cases/${caseId}/approve`, {
+    const res = await fetch(`${API_BASE_URL}/api/cases/${caseId}/approve`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ notes }),
@@ -66,16 +70,17 @@ export const api = {
     return handleResponse(res);
   },
 
-  async rejectCase(caseId) {
-    const res = await fetch(`${API_BASE_URL}/cases/${caseId}/reject`, {
+  async rejectCase(caseId, notes = '') {
+    const res = await fetch(`${API_BASE_URL}/api/cases/${caseId}/reject`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ notes }),
     });
     return handleResponse(res);
   },
 
   async runBatch() {
-    const res = await fetch(`${API_BASE_URL}/batch/run`, {
+    const res = await fetch(`${API_BASE_URL}/api/batch/run`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
     });
@@ -83,12 +88,12 @@ export const api = {
   },
 
   async getMetrics() {
-    const res = await fetch(`${API_BASE_URL}/metrics`);
+    const res = await fetch(`${API_BASE_URL}/api/metrics`);
     return handleResponse(res);
   },
 
   async getModelMetrics() {
-    const res = await fetch(`${API_BASE_URL}/model/metrics`);
+    const res = await fetch(`${API_BASE_URL}/api/model/metrics`);
     return handleResponse(res);
   },
 
@@ -97,18 +102,20 @@ export const api = {
     if (status && status !== 'ALL') params.append('status', status);
     if (caseId) params.append('case_id', caseId);
 
-    const url = `${API_BASE_URL}/audit${params.toString() ? `?${params.toString()}` : ''}`;
-    const res = await fetch(url);
-    return handleResponse(res);
+    const query = params.toString() ? `?${params.toString()}` : '';
+    const res = await fetch(`${API_BASE_URL}/api/audit${query}`);
+    const data = await handleResponse(res);
+    return Array.isArray(data) ? data : (data?.audit_logs || []);
   },
 
   async getCaseAudit(caseId) {
-    const res = await fetch(`${API_BASE_URL}/audit/${caseId}`);
-    return handleResponse(res);
+    const res = await fetch(`${API_BASE_URL}/api/audit/${caseId}`);
+    const data = await handleResponse(res);
+    return Array.isArray(data) ? data : (data?.audit_logs || []);
   },
 
   async resetState() {
-    const res = await fetch(`${API_BASE_URL}/reset`, {
+    const res = await fetch(`${API_BASE_URL}/api/reset`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
     });

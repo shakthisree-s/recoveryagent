@@ -1,10 +1,28 @@
-@"
+# Python
 .venv/
+venv/
 __pycache__/
 *.pyc
-.env
-*.env
-*.db
 .pytest_cache/
+
+# Secrets / environment (keep .env.example and .env.production which carry no secrets)
+.env
+.env.local
+.env.*.local
+frontend/.env
+frontend/.env.local
+
+# Local databases / generated state
+*.db
+*.db-wal
+*.db-shm
+revenue_recovery.db
+
+# Editors / OS
 .vscode/
-"@ | Out-File -Encoding utf8 .gitignore
+.idea/
+.DS_Store
+
+# Frontend
+node_modules/
+frontend/node_modules/

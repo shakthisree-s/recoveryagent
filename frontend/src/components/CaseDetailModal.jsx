@@ -27,10 +27,15 @@ export default function CaseDetailModal({
 }) {
   const [activeTab, setActiveTab] = useState('flow');
   const [simulateFailureToggle, setSimulateFailureToggle] = useState(false);
+  const [approvalNotes, setApprovalNotes] = useState('');
 
   if (!caseDetail) return null;
 
   const { case: caseData, analysis, decision_flow, audit_history } = caseDetail;
+  const policyChecks = analysis?.policy_checks || [];
+  const evidence = analysis?.evidence || caseData.evidence || [];
+  const timeline = [...(audit_history || [])].sort((a, b) =>
+    String(a.timestamp).localeCompare(String(b.timestamp)));
 
   const isHumanApproval = caseData.status === 'HUMAN_APPROVAL_REQUIRED';
   const isRetryAvailable = caseData.status === 'RETRY_AVAILABLE';
@@ -76,6 +81,18 @@ export default function CaseDetailModal({
               onClick={() => setActiveTab('flow')}
             >
               AI Decision Flow
+            </button>
+            <button
+              className={`tab-btn ${activeTab === 'policy' ? 'active' : ''}`}
+              onClick={() => setActiveTab('policy')}
+            >
+              Policy Checks ({policyChecks.length})
+            </button>
+            <button
+              className={`tab-btn ${activeTab === 'timeline' ? 'active' : ''}`}
+              onClick={() => setActiveTab('timeline')}
+            >
+              Action Timeline
             </button>
             <button
               className={`tab-btn ${activeTab === 'profile' ? 'active' : ''}`}
@@ -179,6 +196,36 @@ export default function CaseDetailModal({
 
               <DecisionFlow steps={decision_flow} />
 
+              {/* Why this action? */}
+              <div className="alert-box alert-info" style={{ marginTop: '16px', flexDirection: 'column', alignItems: 'stretch' }}>
+                <strong style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Sparkles size={14} /> Why this action?
+                </strong>
+                <p style={{ marginTop: '6px', fontSize: '0.82rem' }}>
+                  {analysis?.decision_reason || caseData.reason}
+                </p>
+                <div style={{ marginTop: '8px', fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
+                  <div><strong>Root cause:</strong> {analysis?.root_cause || caseData.root_cause || caseData.diagnosis_label}</div>
+                  <div><strong>Objective:</strong> {analysis?.recovery_objective || '—'}</div>
+                  <div><strong>Policy verdict:</strong> {analysis?.policy_result || caseData.policy_evaluation}
+                    {' · '}Expected recovery ₹{Number(analysis?.expected_recovery || 0).toLocaleString('en-IN')}
+                    {' · '}Confidence {analysis?.decision_confidence ?? '—'}</div>
+                </div>
+                <p style={{ marginTop: '8px', fontSize: '0.72rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                  ML provides the risk signal; merchant policies govern recovery execution.
+                </p>
+              </div>
+
+              {/* Risk factors / evidence — real data only */}
+              {evidence.length > 0 && (
+                <div style={{ marginTop: '16px' }}>
+                  <h4 style={{ marginBottom: '8px' }}>Risk Factors &amp; Evidence</h4>
+                  <ul style={{ margin: 0, paddingLeft: '18px', fontSize: '0.8rem', color: 'var(--text-secondary)', lineHeight: 1.7 }}>
+                    {evidence.map((e, i) => <li key={i}>{e}</li>)}
+                  </ul>
+                </div>
+              )}
+
               {/* Execution Attempt History */}
               {caseData.attempts && caseData.attempts.length > 0 && (
                 <div style={{ marginTop: '20px' }}>
@@ -217,6 +264,69 @@ export default function CaseDetailModal({
                       </div>
                     ))}
                   </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Tab: Policy Checks */}
+          {activeTab === 'policy' && (
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
+                <ShieldCheck size={16} color="#0F172A" />
+                <h4 style={{ margin: 0 }}>Guardrail Evaluation</h4>
+                <span className={`badge ${analysis?.policy_result === 'BLOCKED' ? 'badge-blocked' : analysis?.policy_result === 'HUMAN_APPROVAL_REQUIRED' ? 'badge-approval' : 'badge-recovered'}`}>
+                  {analysis?.policy_result || caseData.policy_evaluation}
+                </span>
+              </div>
+              {policyChecks.length === 0 ? (
+                <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>Re-analyze the case to view policy checks.</p>
+              ) : (
+                <table className="custom-table">
+                  <thead><tr><th>Rule</th><th>Result</th><th>Reason</th></tr></thead>
+                  <tbody>
+                    {policyChecks.map((c, i) => (
+                      <tr key={i}>
+                        <td style={{ fontFamily: 'monospace', fontSize: '0.75rem' }}>{c.rule}</td>
+                        <td>
+                          <span className={`badge ${c.result === 'PASS' ? 'badge-recovered' : 'badge-blocked'}`}>{c.result}</span>
+                        </td>
+                        <td style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>{c.reason}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          )}
+
+          {/* Tab: Action Timeline */}
+          {activeTab === 'timeline' && (
+            <div>
+              <h4 style={{ marginBottom: '10px' }}>Chronological Action Timeline</h4>
+              {timeline.length === 0 ? (
+                <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>No events recorded yet.</p>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0' }}>
+                  {timeline.map((item, idx) => (
+                    <div key={idx} style={{ display: 'flex', gap: '12px' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                        <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: item.recovered_amount > 0 ? '#059669' : (item.status === 'BLOCKED' || item.status === 'STOPPED' ? '#DC2626' : '#2563EB'), marginTop: '4px' }} />
+                        {idx < timeline.length - 1 && <div style={{ flex: 1, width: '2px', background: 'var(--border-subtle)' }} />}
+                      </div>
+                      <div style={{ paddingBottom: '16px', flex: 1 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem' }}>
+                          <strong>{item.agent_stage || 'EXECUTE'} · {item.audit_event}</strong>
+                          <span style={{ color: 'var(--text-muted)' }}>{String(item.timestamp).replace('T', ' ')}</span>
+                        </div>
+                        <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', margin: '2px 0 0' }}>{item.reason}</p>
+                        <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                          {item.decision} · {item.status} · Recovered ₹{Number(item.recovered_amount || 0).toLocaleString('en-IN')}
+                          {item.approval_notes ? ` · Note: ${item.approval_notes}` : ''}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               )}
             </div>
@@ -300,24 +410,33 @@ export default function CaseDetailModal({
         {/* Footer Actions */}
         <div className="drawer-footer">
           {isHumanApproval ? (
-            <>
-              <button
-                className="btn btn-danger btn-sm"
-                onClick={() => onReject(caseData.case_id)}
-                disabled={isLoading}
-              >
-                <Ban size={14} />
-                <span>Reject</span>
-              </button>
-              <button
-                className="btn btn-success"
-                onClick={() => onApprove(caseData.case_id)}
-                disabled={isLoading}
-              >
-                <UserCheck size={16} />
-                <span>Approve Recovery (₹{caseData.amount.toLocaleString('en-IN')})</span>
-              </button>
-            </>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', width: '100%' }}>
+              <input
+                type="text"
+                placeholder="Approver notes (optional) — recorded in the audit trail"
+                value={approvalNotes}
+                onChange={(e) => setApprovalNotes(e.target.value)}
+                style={{ padding: '8px 10px', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-md)', fontSize: '0.8125rem' }}
+              />
+              <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                <button
+                  className="btn btn-danger btn-sm"
+                  onClick={() => onReject(caseData.case_id, approvalNotes)}
+                  disabled={isLoading}
+                >
+                  <Ban size={14} />
+                  <span>Reject</span>
+                </button>
+                <button
+                  className="btn btn-success"
+                  onClick={() => onApprove(caseData.case_id, approvalNotes)}
+                  disabled={isLoading}
+                >
+                  <UserCheck size={16} />
+                  <span>Approve Recovery (₹{caseData.amount.toLocaleString('en-IN')})</span>
+                </button>
+              </div>
+            </div>
           ) : isRetryAvailable ? (
             <button
               className="btn btn-primary"

@@ -20,8 +20,13 @@ export default function RecoveryCases({
 }) {
   const [filterTab, setFilterTab] = useState('ALL');
   const [searchTerm, setSearchTerm] = useState('');
+  const [riskFilter, setRiskFilter] = useState('ALL');
+  const [sortBy, setSortBy] = useState('priority');
+
+  const priorityOf = (c) => (c.amount || 0) * (c.risk_score || c.risk_probability || 0);
 
   const filteredCases = cases.filter((c) => {
+    if (riskFilter !== 'ALL' && (c.risk_level || 'LOW') !== riskFilter) return false;
     // Filter Tab Match
     if (filterTab === 'AT_RISK' && c.recommended_action === 'NO_ACTION') return false;
     if (filterTab === 'RECOVERED' && c.status !== 'RECOVERED') return false;
@@ -41,6 +46,17 @@ export default function RecoveryCases({
     }
 
     return true;
+  });
+
+  const sortedCases = [...filteredCases].sort((a, b) => {
+    switch (sortBy) {
+      case 'amount': return (b.amount || 0) - (a.amount || 0);
+      case 'risk': return (b.risk_score || b.risk_probability || 0) - (a.risk_score || a.risk_probability || 0);
+      case 'recovered': return (b.recovered_amount || 0) - (a.recovered_amount || 0);
+      case 'id': return a.case_id - b.case_id;
+      case 'priority':
+      default: return priorityOf(b) - priorityOf(a);
+    }
   });
 
   const getStatusBadge = (status, stoppingReason) => {
@@ -128,14 +144,31 @@ export default function RecoveryCases({
           </button>
         </div>
 
-        <div className="search-input-box">
-          <Search size={16} color="var(--text-muted)" />
-          <input
-            type="text"
-            placeholder="Search by customer, case ID, diagnosis..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+          <select value={riskFilter} onChange={(e) => setRiskFilter(e.target.value)}
+            style={{ padding: '7px 10px', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-md)', fontSize: '0.8rem' }}>
+            <option value="ALL">All risk</option>
+            <option value="HIGH">High risk</option>
+            <option value="MEDIUM">Medium risk</option>
+            <option value="LOW">Low risk</option>
+          </select>
+          <select value={sortBy} onChange={(e) => setSortBy(e.target.value)}
+            style={{ padding: '7px 10px', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-md)', fontSize: '0.8rem' }}>
+            <option value="priority">Sort: Priority</option>
+            <option value="amount">Sort: Amount</option>
+            <option value="risk">Sort: Risk</option>
+            <option value="recovered">Sort: Recovered</option>
+            <option value="id">Sort: Case ID</option>
+          </select>
+          <div className="search-input-box">
+            <Search size={16} color="var(--text-muted)" />
+            <input
+              type="text"
+              placeholder="Search by customer, case ID, diagnosis..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+          </div>
         </div>
       </div>
 
@@ -156,7 +189,7 @@ export default function RecoveryCases({
             </tr>
           </thead>
           <tbody>
-            {filteredCases.map((caseItem) => (
+            {sortedCases.map((caseItem) => (
               <tr key={caseItem.case_id} onClick={() => onSelectCase(caseItem.case_id)}>
                 <td style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
                   #{caseItem.case_id}
